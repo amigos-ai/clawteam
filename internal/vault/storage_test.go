@@ -114,3 +114,61 @@ func TestLoad_InvalidNames(t *testing.T) {
 		})
 	}
 }
+
+func TestList(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStorage(tmpDir)
+
+	// Add two credentials
+	store.Save(&Credential{Name: "key1", Type: TypeAPIKey, Value: "v1"})
+	store.Save(&Credential{Name: "key2", Type: TypeSSHKey, Value: "v2"})
+
+	list, err := store.List()
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(list) != 2 {
+		t.Errorf("Expected 2 credentials, got %d", len(list))
+	}
+}
+
+func TestRemove(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStorage(tmpDir)
+
+	store.Save(&Credential{Name: "to-delete", Type: TypeAPIKey, Value: "v"})
+
+	err := store.Remove("to-delete")
+	if err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+
+	_, err = store.Load("to-delete")
+	if err == nil {
+		t.Error("Expected error loading removed credential")
+	}
+}
+
+func TestRemove_InvalidNames(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStorage(tmpDir)
+
+	invalidNames := []string{
+		"",
+		"../etc/passwd",
+		"foo/bar",
+		"foo\\bar",
+		".",
+		"..",
+	}
+
+	for _, name := range invalidNames {
+		t.Run("name="+name, func(t *testing.T) {
+			err := store.Remove(name)
+			if err == nil {
+				t.Errorf("Remove(%q) should fail with invalid name", name)
+			}
+		})
+	}
+}

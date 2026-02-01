@@ -75,3 +75,40 @@ func (s *Storage) Load(name string) (*Credential, error) {
 
 	return &cred, nil
 }
+
+func (s *Storage) List() ([]*Credential, error) {
+	entries, err := os.ReadDir(s.dir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read vault dir: %w", err)
+	}
+
+	var creds []*Credential
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		name := entry.Name()[:len(entry.Name())-5] // remove .json
+		cred, err := s.Load(name)
+		if err != nil {
+			continue
+		}
+		creds = append(creds, cred)
+	}
+
+	return creds, nil
+}
+
+func (s *Storage) Remove(name string) error {
+	if err := validateName(name); err != nil {
+		return fmt.Errorf("invalid credential name: %w", err)
+	}
+
+	path := filepath.Join(s.dir, name+".json")
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("remove credential: %w", err)
+	}
+	return nil
+}
