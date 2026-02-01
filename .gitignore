@@ -1,0 +1,17 @@
+# Binaries
+/clawteam
+*.exe
+
+# Go
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Local config (for testing)
+.clawteam/
