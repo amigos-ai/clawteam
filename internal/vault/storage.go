@@ -2,9 +2,11 @@ package vault
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type Storage struct {
@@ -15,7 +17,29 @@ func NewStorage(dir string) *Storage {
 	return &Storage{dir: dir}
 }
 
+// validateName checks that a credential name is safe for use in file paths.
+// It rejects empty names, names containing path separators, and special directory names.
+func validateName(name string) error {
+	if name == "" {
+		return errors.New("credential name cannot be empty")
+	}
+	if strings.ContainsAny(name, "/\\") {
+		return errors.New("credential name cannot contain path separators")
+	}
+	if name == "." || name == ".." {
+		return errors.New("credential name cannot be '.' or '..'")
+	}
+	return nil
+}
+
 func (s *Storage) Save(cred *Credential) error {
+	if cred == nil {
+		return errors.New("credential cannot be nil")
+	}
+	if err := validateName(cred.Name); err != nil {
+		return fmt.Errorf("invalid credential name: %w", err)
+	}
+
 	if err := os.MkdirAll(s.dir, 0700); err != nil {
 		return fmt.Errorf("create vault dir: %w", err)
 	}
@@ -34,6 +58,10 @@ func (s *Storage) Save(cred *Credential) error {
 }
 
 func (s *Storage) Load(name string) (*Credential, error) {
+	if err := validateName(name); err != nil {
+		return nil, fmt.Errorf("invalid credential name: %w", err)
+	}
+
 	path := filepath.Join(s.dir, name+".json")
 	data, err := os.ReadFile(path)
 	if err != nil {
