@@ -13,6 +13,10 @@ var rootCmd = &cobra.Command{
 	Long:  "Manage isolated OpenClaw instances in Docker containers",
 }
 
+func init() {
+	rootCmd.AddCommand(vaultCmd)
+}
+
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
