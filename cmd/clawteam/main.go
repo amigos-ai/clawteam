@@ -3,16 +3,19 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
+var rootCmd = &cobra.Command{
+	Use:   "clawteam",
+	Short: "OpenClaw orchestration tool",
+	Long:  "Manage isolated OpenClaw instances in Docker containers",
+}
+
 func main() {
-	if err := run(); err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-}
-
-func run() error {
-	fmt.Println("clawteam - OpenClaw orchestration tool")
-	return nil
 }
