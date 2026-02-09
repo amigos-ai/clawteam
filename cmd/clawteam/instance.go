@@ -54,7 +54,10 @@ var createCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Instance '%s' running at http://localhost:%d\n", inst.Name, inst.Port)
+		url := fmt.Sprintf("http://localhost:%d/?token=%s", inst.Port, inst.GatewayToken)
+		fmt.Printf("Instance '%s' created:\n  URL: %s\n", inst.Name, url)
+		fmt.Println("\nOpen the URL in your browser, then run:")
+		fmt.Printf("  clawteam pair %s\n", inst.Name)
 		return nil
 	},
 }
@@ -80,9 +83,13 @@ var listCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tSTATUS\tPORT\tPERSISTENCE")
+		fmt.Fprintln(w, "NAME\tSTATUS\tURL")
 		for _, inst := range instances {
-			fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", inst.Name, inst.Status, inst.Port, inst.Persistence)
+			url := fmt.Sprintf("http://localhost:%d/?token=%s", inst.Port, inst.GatewayToken)
+			if inst.Status != "running" {
+				url = "-"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\n", inst.Name, inst.Status, url)
 		}
 		w.Flush()
 
@@ -167,6 +174,59 @@ var logsCmd = &cobra.Command{
 	},
 }
 
+var pairCmd = &cobra.Command{
+	Use:   "pair <name>",
+	Short: "Approve pending device pairings for an instance",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+		specificID, _ := cmd.Flags().GetString("id")
+
+		mgr, err := getManager()
+		if err != nil {
+			return err
+		}
+		defer mgr.Close()
+
+		ctx := context.Background()
+
+		pending, err := mgr.Pair(ctx, name)
+		if err != nil {
+			return err
+		}
+
+		if len(pending) == 0 {
+			fmt.Println("No pending pairing requests")
+			return nil
+		}
+
+		if specificID != "" {
+			// Approve a specific device
+			if err := mgr.ApprovePairing(ctx, name, specificID); err != nil {
+				return err
+			}
+			fmt.Printf("Approved device %s\n", specificID)
+			return nil
+		}
+
+		// Approve all pending devices
+		for _, dev := range pending {
+			fmt.Printf("Approving device %s", dev.ID)
+			if dev.IP != "" {
+				fmt.Printf(" (%s)", dev.IP)
+			}
+			fmt.Println()
+
+			if err := mgr.ApprovePairing(ctx, name, dev.ID); err != nil {
+				return fmt.Errorf("approve device %s: %w", dev.ID, err)
+			}
+		}
+
+		fmt.Printf("\nApproved %d device(s). Refresh your browser to connect.\n", len(pending))
+		return nil
+	},
+}
+
 func init() {
 	createCmd.Flags().String("anthropic", "", "Vault ref for Anthropic API key")
 	createCmd.Flags().String("openai", "", "Vault ref for OpenAI API key")
@@ -177,4 +237,6 @@ func init() {
 	createCmd.Flags().Int("port", 0, "Specific port (default: auto-assign)")
 
 	logsCmd.Flags().BoolP("follow", "f", false, "Follow log output")
+
+	pairCmd.Flags().String("id", "", "Approve a specific device by request ID")
 }

@@ -2,6 +2,9 @@ package instance
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -66,8 +69,16 @@ func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*Instance, er
 		}
 	}
 
+	// Generate gateway token
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return nil, fmt.Errorf("generate gateway token: %w", err)
+	}
+	gatewayToken := hex.EncodeToString(tokenBytes)
+
 	// Build environment variables from vault refs
 	envVars := make(map[string]string)
+	envVars["OPENCLAW_GATEWAY_TOKEN"] = gatewayToken
 
 	if opts.AnthropicRef != "" {
 		cred, err := m.vault.Load(opts.AnthropicRef)
@@ -192,9 +203,10 @@ func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*Instance, er
 			OpenAIKeyRef:    opts.OpenAIRef,
 			SSHKeyRef:       opts.SSHRef,
 		},
-		ContainerID: containerID,
-		GitName:     opts.GitName,
-		GitEmail:    opts.GitEmail,
+		ContainerID:  containerID,
+		GatewayToken: gatewayToken,
+		GitName:      opts.GitName,
+		GitEmail:     opts.GitEmail,
 	}
 
 	if err := m.registry.Save(inst); err != nil {
@@ -257,6 +269,63 @@ func (m *Manager) Delete(ctx context.Context, name string) error {
 
 	// Remove from registry
 	return m.registry.Delete(name)
+}
+
+func (m *Manager) Pair(ctx context.Context, name string) ([]PendingDevice, error) {
+	inst, err := m.registry.Get(name)
+	if err != nil {
+		return nil, err
+	}
+
+	output, err := m.docker.ExecContainer(ctx, inst.ContainerID, []string{
+		"node", "openclaw.mjs", "devices", "list", "--json",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list pending devices: %w", err)
+	}
+
+	var result devicesListResult
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		return nil, fmt.Errorf("parse devices list: %w", err)
+	}
+
+	devices := make([]PendingDevice, len(result.Pending))
+	for i, p := range result.Pending {
+		devices[i] = PendingDevice{
+			ID:       p.RequestID,
+			DeviceID: p.DeviceID,
+			Role:     p.Role,
+			IP:       p.RemoteIP,
+		}
+	}
+	return devices, nil
+}
+
+type devicesListResult struct {
+	Pending []devicesListPending `json:"pending"`
+}
+
+type devicesListPending struct {
+	RequestID string `json:"requestId"`
+	DeviceID  string `json:"deviceId"`
+	Role      string `json:"role"`
+	RemoteIP  string `json:"remoteIp"`
+}
+
+func (m *Manager) ApprovePairing(ctx context.Context, name string, requestID string) error {
+	inst, err := m.registry.Get(name)
+	if err != nil {
+		return err
+	}
+
+	_, err = m.docker.ExecContainer(ctx, inst.ContainerID, []string{
+		"node", "openclaw.mjs", "devices", "approve", requestID,
+	})
+	if err != nil {
+		return fmt.Errorf("approve pairing: %w", err)
+	}
+
+	return nil
 }
 
 func (m *Manager) Logs(ctx context.Context, name string, follow bool) error {

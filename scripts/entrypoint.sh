@@ -20,5 +20,5 @@ if [ -f /home/node/.gitconfig ]; then
     chown node:node /home/node/.gitconfig
 fi
 
-# Start OpenClaw (existing entrypoint)
-exec docker-entrypoint.sh "$@"
+# Start OpenClaw
+exec "$@"

@@ -23,6 +23,13 @@ type Credentials struct {
 	SSHKeyRef       string `json:"ssh_key_ref,omitempty"`
 }
 
+type PendingDevice struct {
+	ID       string `json:"id"`
+	DeviceID string `json:"device_id"`
+	Role     string `json:"role"`
+	IP       string `json:"ip"`
+}
+
 type Instance struct {
 	Name        string           `json:"name"`
 	Status      Status           `json:"status"`
@@ -30,7 +37,8 @@ type Instance struct {
 	CreatedAt   time.Time        `json:"created_at"`
 	Persistence PersistenceLevel `json:"persistence"`
 	Credentials Credentials      `json:"credentials"`
-	ContainerID string           `json:"container_id"`
-	GitName     string           `json:"git_name,omitempty"`
-	GitEmail    string           `json:"git_email,omitempty"`
+	ContainerID  string           `json:"container_id"`
+	GatewayToken string           `json:"gateway_token"`
+	GitName      string           `json:"git_name,omitempty"`
+	GitEmail     string           `json:"git_email,omitempty"`
 }

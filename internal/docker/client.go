@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 )
 
@@ -108,4 +110,39 @@ func (c *Client) ContainerLogs(ctx context.Context, id string, follow bool) (io.
 		ShowStderr: true,
 		Follow:     follow,
 	})
+}
+
+func (c *Client) ExecContainer(ctx context.Context, containerID string, cmd []string) (string, error) {
+	execConfig := container.ExecOptions{
+		Cmd:          cmd,
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+
+	execID, err := c.cli.ContainerExecCreate(ctx, containerID, execConfig)
+	if err != nil {
+		return "", fmt.Errorf("create exec: %w", err)
+	}
+
+	resp, err := c.cli.ContainerExecAttach(ctx, execID.ID, container.ExecAttachOptions{})
+	if err != nil {
+		return "", fmt.Errorf("attach exec: %w", err)
+	}
+	defer resp.Close()
+
+	var stdout, stderr bytes.Buffer
+	if _, err := stdcopy.StdCopy(&stdout, &stderr, resp.Reader); err != nil {
+		return "", fmt.Errorf("read exec output: %w", err)
+	}
+
+	inspectResp, err := c.cli.ContainerExecInspect(ctx, execID.ID)
+	if err != nil {
+		return "", fmt.Errorf("inspect exec: %w", err)
+	}
+
+	if inspectResp.ExitCode != 0 {
+		return "", fmt.Errorf("command exited with code %d: %s", inspectResp.ExitCode, stderr.String())
+	}
+
+	return stdout.String(), nil
 }

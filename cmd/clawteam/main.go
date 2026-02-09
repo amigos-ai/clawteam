@@ -21,6 +21,7 @@ func init() {
 	rootCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(deleteCmd)
 	rootCmd.AddCommand(logsCmd)
+	rootCmd.AddCommand(pairCmd)
 }
 
 func main() {

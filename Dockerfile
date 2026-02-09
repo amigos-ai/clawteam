@@ -1,7 +1,9 @@
-FROM openclaw:local
+FROM ghcr.io/openclaw/openclaw:2026.1.30
 
-# Git + SSH essentials
-RUN apt-get update && apt-get install -y \
+USER root
+
+# Git + SSH essentials (Debian-based image)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*
@@ -16,4 +18,7 @@ RUN mkdir -p /home/node/.ssh && \
 COPY scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+USER node
+
 ENTRYPOINT ["/entrypoint.sh"]
+CMD ["node", "openclaw.mjs", "gateway", "--allow-unconfigured", "--bind", "lan"]
