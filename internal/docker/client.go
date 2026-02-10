@@ -112,6 +112,14 @@ func (c *Client) ContainerLogs(ctx context.Context, id string, follow bool) (io.
 	})
 }
 
+func (c *Client) IsContainerRunning(ctx context.Context, id string) (bool, error) {
+	info, err := c.cli.ContainerInspect(ctx, id)
+	if err != nil {
+		return false, fmt.Errorf("inspect container: %w", err)
+	}
+	return info.State.Running, nil
+}
+
 func (c *Client) ExecContainer(ctx context.Context, containerID string, cmd []string) (string, error) {
 	execConfig := container.ExecOptions{
 		Cmd:          cmd,

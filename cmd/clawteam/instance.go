@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"text/tabwriter"
+	"time"
 
 	"github.com/amigos-ai/clawteam/internal/instance"
+	"github.com/amigos-ai/clawteam/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -55,6 +57,19 @@ var createCmd = &cobra.Command{
 		}
 
 		url := fmt.Sprintf("http://localhost:%d/?token=%s", inst.Port, inst.GatewayToken)
+
+		spinner := ui.NewSpinner(ui.WithFrames(ui.LobsterFrames))
+		spinner.Start("Starting gateway...")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		if err := mgr.WaitReady(ctx, name); err != nil {
+			spinner.StopWith(fmt.Sprintf("Warning: gateway may not be ready: %v", err))
+		} else {
+			spinner.StopWith("Gateway ready!")
+		}
+
 		fmt.Printf("Instance '%s' created:\n  URL: %s\n", inst.Name, url)
 		fmt.Println("\nOpen the URL in your browser, then run:")
 		fmt.Printf("  clawteam pair %s\n", inst.Name)
@@ -102,17 +117,31 @@ var startCmd = &cobra.Command{
 	Short: "Start a stopped instance",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+
 		mgr, err := getManager()
 		if err != nil {
 			return err
 		}
 		defer mgr.Close()
 
-		if err := mgr.Start(context.Background(), args[0]); err != nil {
+		if err := mgr.Start(context.Background(), name); err != nil {
 			return err
 		}
 
-		fmt.Printf("Instance '%s' started\n", args[0])
+		spinner := ui.NewSpinner(ui.WithFrames(ui.LobsterFrames))
+		spinner.Start("Starting gateway...")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		if err := mgr.WaitReady(ctx, name); err != nil {
+			spinner.StopWith(fmt.Sprintf("Warning: gateway may not be ready: %v", err))
+		} else {
+			spinner.StopWith("Gateway ready!")
+		}
+
+		fmt.Printf("Instance '%s' started\n", name)
 		return nil
 	},
 }
